@@ -1,5 +1,4 @@
 # weibo-spider -- 微博爬虫PHP脚本 
-
 weibo-spider是微博项目爬虫脚本的整理，以PHP语言开发，MySQL作为存储数据库。
 
 # 快速上手
