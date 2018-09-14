@@ -44,7 +44,7 @@ $sql = "CREATE TABLE IF NOT EXISTS `weibo_" . $uid . "` (
   `html` text NOT NULL COMMENT '微博HTML内容',
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8mb4 COMMENT='" . $tableDes . "'";
-$db = (new Bootstrap())->db('spider');
+$db = (new Bootstrap())->db();
 $db->exec($sql);
 
 //爬取微博内容
