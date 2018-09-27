@@ -12,146 +12,144 @@ require_once __DIR__ . '/Bootstrap.php';
  * 赞 https://m.weibo.cn/api/attitudes/show?id=4275228743400463&page=1
  */
 
-$uid = 1640571365;
+$uids = [
+	'6338505167',
+	'6330544304'
+];
 
-$url = 'https://m.weibo.cn/api/container/getIndex?type=uid&value=' . $uid;
-//微博主页URL
-$getIndex = request($url, true);
-$getIndex = json_decode($getIndex, true);
-$userInfo = $getIndex['data']['userInfo'];
-$profile_url = $userInfo['profile_url'];
-$lfid = explode('lfid=', $profile_url)[1];
-$domain = substr($lfid, 0, 6);
-$name = $userInfo['screen_name'];
+foreach ($uids as $key => $uid) {
+	weibo($uid);
+}
 
-//生成表结构
-$tableDes = '[' . $name . '] 发文数量：' . $userInfo['statuses_count'];
-$sql = "CREATE TABLE IF NOT EXISTS `weibo_" . $uid . "` (
-  `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
-  `uid` bigint(20) NOT NULL COMMENT '微博用户ID',
-  `name` varchar(255) NOT NULL DEFAULT '' COMMENT '微博昵称',
-  `post_time` varchar(30) NOT NULL DEFAULT '' COMMENT '发布时间',
-  `from_device` varchar(255) NOT NULL DEFAULT '' COMMENT '发布设备',
-  `is_forward` enum('转发','原创') NOT NULL DEFAULT '转发' COMMENT '是否转发',
-  `forward_num` int(11) NOT NULL DEFAULT '0' COMMENT '转发数',
-  `comment_num` int(11) NOT NULL DEFAULT '0' COMMENT '评论数',
-  `like_num` int(11) NOT NULL DEFAULT '0' COMMENT '点赞数',
-  `link_url` varchar(255) NOT NULL DEFAULT '' COMMENT '微博链接',
-  `is_emoji` enum('有表情','无表情') NOT NULL DEFAULT '无表情' COMMENT '是否有表情',
-  `is_image` enum('有图片','无图片') NOT NULL DEFAULT '无图片' COMMENT '是否有图片',
-  `is_video` enum('有视频','无视频') NOT NULL DEFAULT '无视频' COMMENT '是否有视频',
-  `content` text NOT NULL COMMENT '微博内容',
-  `html` text NOT NULL COMMENT '微博HTML内容',
-  PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8mb4 COMMENT='" . $tableDes . "'";
-$db = (new Bootstrap())->db();
-$db->exec($sql);
+function weibo($uid) {
+	$url = 'https://m.weibo.cn/api/container/getIndex?type=uid&value=' . $uid;
+	//微博主页URL
+	$getIndex = request($url, true);
+	$getIndex = json_decode($getIndex, true);
+	$userInfo = $getIndex['data']['userInfo'];
+	$profile_url = $userInfo['profile_url'];
+	$lfid = explode('lfid=', $profile_url)[1];
+	$domain = substr($lfid, 0, 6);
+	$name = $userInfo['screen_name'];
 
-//爬取微博内容
-$page_total = ceil($userInfo['statuses_count'] / 44);
-$page_id = $domain . $uid;
-for ($page = 1; $page <= $page_total; $page++) {
-    for ($p = 1; $p <= 3; $p++) {
-        switch ($p) {
-            case 1:
-                $pagebar = 0;
-                $pre_page = $page - 1;
-                break;
-            case 2:
-                $pagebar = 0;
-                $pre_page = $page;
-                break;
-            case 3:
-                $pagebar = 1;
-                $pre_page = $page;
-                break;
-            default:
-                $pagebar = 0;
-                $pre_page = $page - 1;
-        }
-        $params = [
-            'ajwvr' => 6,
-            'domain' => $domain,
-            'domain_op' => $domain,
-            'profile_ftype' => 1,
-            'is_all' => 1,
-            'is_search' => 0,
-            'visible' => 0,
-            'pagebar' => $pagebar,
-            'id' => $page_id,
-            'script_uri' => '/p/' . $page_id . '/home',
-            'feed_type' => 0,
-            'page' => $page,
-            'pre_page' => $pre_page,
-        ];
-        $param_uri = http_build_query($params);
-        $url = 'https://weibo.com/p/aj/v6/mblog/mbloglist?' . $param_uri;
-        $result = json_decode(request($url), true);
+	//生成表结构
+	$tableDes = '[' . $name . '] 发文数量：' . $userInfo['statuses_count'];
+	$sql = "CREATE TABLE IF NOT EXISTS `weibo_" . $uid . "` (
+	  `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+	  `uid` bigint(20) NOT NULL COMMENT '微博用户ID',
+	  `name` varchar(255) NOT NULL DEFAULT '' COMMENT '微博昵称',
+	  `post_time` varchar(30) NOT NULL DEFAULT '' COMMENT '发布时间',
+	  `from_device` varchar(255) NOT NULL DEFAULT '' COMMENT '发布设备',
+	  `is_forward` enum('转发','原创') NOT NULL DEFAULT '转发' COMMENT '是否转发',
+	  `forward_num` int(11) NOT NULL DEFAULT '0' COMMENT '转发数',
+	  `comment_num` int(11) NOT NULL DEFAULT '0' COMMENT '评论数',
+	  `like_num` int(11) NOT NULL DEFAULT '0' COMMENT '点赞数',
+	  `link_url` varchar(255) NOT NULL DEFAULT '' COMMENT '微博链接',
+	  `content` text NOT NULL COMMENT '微博内容',
+	  `html` text NOT NULL COMMENT '微博HTML内容',
+	  PRIMARY KEY (`id`)
+	) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8mb4 COMMENT='" . $tableDes . "'";
+	$db = (new Bootstrap())->db();
+	$db->exec($sql);
 
-        //加载网页资源到phpQuery
-        phpQuery::newDocument($result['data']);
-        $cardwraps = pq("div.[action-type='feed_list_item']");
-        foreach ($cardwraps as $key => $cardwrap) {
-            $cardwrap = pq($cardwrap);
-            $href = $cardwrap->find(".WB_detail .WB_from a:first")->attr('href');
-            $link = $href ? explode('?', $href) : [];
-            $data = [];
-            $data['uid'] = $uid;
-            $data['name'] = $name;
-            //微博链接
-            $data['link_url'] = 'http://weibo.com' . $link[0];
-            //发送日期
-            $data['post_time'] = $cardwrap->find(".WB_detail .WB_from a:first")->attr('title');
-            //发送设备
-            if ($cardwrap->find(".WB_detail .WB_from a")->length > 1) {
-                $from_device = $cardwrap->find(".WB_detail .WB_from a:last")->text();
-                $data['from_device'] = addslashes($from_device);
-            } else {
-                $data['from_device'] = '微博 weibo.com';
-            }
-            //是否转发
-            $isforward = $cardwrap->find(".WB_detail div")->hasClass("WB_feed_expand");
-            $data['is_forward'] = $isforward ? '转发' : '原创';
-            //转发数
-            $forward_num = $cardwrap->find(".WB_feed_handle [node-type='forward_btn_text'] em:last")->text();
-            $data['forward_num'] = is_numeric($forward_num) ? $forward_num : 0;
-            //评论数
-            $comment_num = $cardwrap->find(".WB_feed_handle [node-type='comment_btn_text'] em:last")->text();
-            $data['comment_num'] = is_numeric($comment_num) ? $comment_num : 0;
-            //点赞数
-            $like_num = $cardwrap->find(".WB_feed_handle [node-type='like_status'] em:last")->text();
-            $data['like_num'] = is_numeric($like_num) ? $like_num : 0;
-            //微博内容
-            $detail_html = $cardwrap->find(".WB_detail")->html();
-            $is_more = stripos($detail_html, '展开全文<i class=');
-            if ($is_more) {
-                $mid = $cardwrap->find(".WB_detail .WB_from a")->attr("name");
-                $longtext_url = 'https://weibo.com/p/aj/mblog/getlongtext?ajwvr=6&mid=' . $mid;
-                $longtext = json_decode(request($longtext_url), true);
-                $feed_html = $longtext['data']['html'];
-            } else {
-                $feed_html = $cardwrap->find(".WB_detail [node-type='feed_list_content']")->html();
-            }
-            //判断是否有表情 图片 视频
-            $is_emoji= stripos($feed_html, 'W_img_face');
-            $is_image = stripos($detail_html, 'WB_pic');
-            $is_video = stripos($detail_html, 'WB_video');
-            $data['is_emoji'] = $is_emoji ? '有表情' : '无表情';
-            $data['is_image'] = $is_image ? '有图片' : '无图片';
-            $data['is_video'] = $is_video ? '有视频' : '无视频';
-            $data['html'] = addslashes(trim($feed_html));
-            $data['content'] = addslashes(strip_tags(trim($feed_html)));
-            $db->add($data, 'weibo_'. $uid);
-            $id = $db->getLastId();
-            $date = date('Y-m-d H:i:s', time());
-            echo '['. $date .'] ID.'. $id . ' | ' . $page . '-' . $pre_page . ' -> ' .$name . " is Ad\n";
-        }
-    }
+	//爬取微博内容
+	$page_total = ceil($userInfo['statuses_count'] / 44);
+	$page_id = $domain . $uid;
+	for ($page = 1; $page <= $page_total; $page++) {
+	    for ($p = 1; $p <= 3; $p++) {
+	        switch ($p) {
+	            case 1:
+	                $pagebar = 0;
+	                $pre_page = $page - 1;
+	                break;
+	            case 2:
+	                $pagebar = 0;
+	                $pre_page = $page;
+	                break;
+	            case 3:
+	                $pagebar = 1;
+	                $pre_page = $page;
+	                break;
+	            default:
+	                $pagebar = 0;
+	                $pre_page = $page - 1;
+	        }
+	        $params = [
+	            'ajwvr' => 6,
+	            'domain' => $domain,
+	            'domain_op' => $domain,
+	            'profile_ftype' => 1,
+	            'is_all' => 1,
+	            'is_search' => 0,
+	            'visible' => 0,
+	            'pagebar' => $pagebar,
+	            'id' => $page_id,
+	            'script_uri' => '/p/' . $page_id . '/home',
+	            'feed_type' => 0,
+	            'page' => $page,
+	            'pre_page' => $pre_page,
+	        ];
+	        $param_uri = http_build_query($params);
+	        $url = 'https://weibo.com/p/aj/v6/mblog/mbloglist?' . $param_uri;
+	        $result = json_decode(request($url), true);
+
+	        //加载网页资源到phpQuery
+	        phpQuery::newDocument($result['data']);
+	        $cardwraps = pq("div.[action-type='feed_list_item']");
+	        foreach ($cardwraps as $key => $cardwrap) {
+	            $cardwrap = pq($cardwrap);
+	            $href = $cardwrap->find(".WB_detail .WB_from a:first")->attr('href');
+	            $link = $href ? explode('?', $href) : [];
+	            $data = [];
+	            $data['uid'] = $uid;
+	            $data['name'] = $name;
+	            //微博链接
+	            $data['link_url'] = 'http://weibo.com' . $link[0];
+	            //发送日期
+	            $data['post_time'] = $cardwrap->find(".WB_detail .WB_from a:first")->attr('title');
+	            //发送设备
+	            if ($cardwrap->find(".WB_detail .WB_from a")->length > 1) {
+	                $from_device = $cardwrap->find(".WB_detail .WB_from a:last")->text();
+	                $data['from_device'] = addslashes($from_device);
+	            } else {
+	                $data['from_device'] = '微博 weibo.com';
+	            }
+	            //是否转发
+	            $isforward = $cardwrap->find(".WB_detail div")->hasClass("WB_feed_expand");
+	            $data['is_forward'] = $isforward ? '转发' : '原创';
+	            //转发数
+	            $forward_num = $cardwrap->find(".WB_feed_handle [node-type='forward_btn_text'] em:last")->text();
+	            $data['forward_num'] = is_numeric($forward_num) ? $forward_num : 0;
+	            //评论数
+	            $comment_num = $cardwrap->find(".WB_feed_handle [node-type='comment_btn_text'] em:last")->text();
+	            $data['comment_num'] = is_numeric($comment_num) ? $comment_num : 0;
+	            //点赞数
+	            $like_num = $cardwrap->find(".WB_feed_handle [node-type='like_status'] em:last")->text();
+	            $data['like_num'] = is_numeric($like_num) ? $like_num : 0;
+	            //微博内容
+	            $detail_html = $cardwrap->find(".WB_detail")->html();
+	            $is_more = stripos($detail_html, '展开全文<i class=');
+	            if ($is_more) {
+	                $mid = $cardwrap->find(".WB_detail .WB_from a")->attr("name");
+	                $longtext_url = 'https://weibo.com/p/aj/mblog/getlongtext?ajwvr=6&mid=' . $mid;
+	                $longtext = json_decode(request($longtext_url), true);
+	                $feed_html = $longtext['data']['html'];
+	            } else {
+	                $feed_html = $cardwrap->find(".WB_detail [node-type='feed_list_content']")->html();
+	            }
+	            $data['html'] = addslashes(trim($feed_html));
+	            $data['content'] = addslashes(strip_tags(trim($feed_html)));
+	            $db->add($data, 'weibo_'. $uid);
+	            $id = $db->getLastId();
+	            $date = date('Y-m-d H:i:s', time());
+	            echo '['. $date .'] ID.'. $id . ' | ' . $page . '-' . $pre_page . ' -> ' .$name . " is Ad\n";
+	        }
+	    }
+	}
 }
 
 //cURL模拟采集
-function request($url, $is_m = false)
-{
+function request($url, $is_m = false) {
     //实例化curl资源
     $ch = curl_init();
     $http_header = [

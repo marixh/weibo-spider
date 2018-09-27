@@ -3,8 +3,9 @@
  * 初始化的配置
  * @date     2018/08/08 15:40
  */
-require '../library/Db.php';
-require '../library/phpQuery/phpQuery.php';
+require __DIR__ . '/../library/Db.php';
+require __DIR__ . '/../library/phpQuery/phpQuery.php';
+require __DIR__ . '/../library/phpExcel/Excel.php';
 
 class Bootstrap
 {
